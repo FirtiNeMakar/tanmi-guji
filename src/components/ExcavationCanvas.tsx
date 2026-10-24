@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Hand, RotateCcw, Sparkles } from "lucide-react";
 import type { Artifact, Layer } from "../types";
+import { translate } from "../i18n";
+import type { Language } from "../i18n";
 
 type Props = {
+  language: Language;
   layers: Layer[];
   progress: number;
   onProgress: (value: number) => void;
@@ -12,7 +15,8 @@ type Props = {
   onLayerChange: (layer: number) => void;
 };
 
-export default function ExcavationCanvas({ layers, artifacts, foundIds, onFound, onLayerChange, progress: revealed, onProgress }: Props) {
+export default function ExcavationCanvas({ language, layers, artifacts, foundIds, onFound, onLayerChange, progress: revealed, onProgress }: Props) {
+  const tr = (text: string) => translate(text, language);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const progressRef = useRef(revealed);
   progressRef.current = revealed;
@@ -94,13 +98,13 @@ export default function ExcavationCanvas({ layers, artifacts, foundIds, onFound,
   return (
     <div className="dig-game">
       <div className="dig-toolbar">
-        <span className="live-dot" /> <span>探方 A-01</span>
+        <span className="live-dot" /> <span>{tr("探方 A-01")}</span>
         <span className="toolbar-separator">·</span>
-        <span>模拟发掘</span>
-        <button className="tiny-reset" onClick={() => { onProgress(0); onLayerChange(1); setIsDragging(false); setHint("用手指刮开泥土"); }} aria-label="重新开始"><RotateCcw size={15} /></button>
+        <span>{tr("模拟发掘")}</span>
+        <button className="tiny-reset" onClick={() => { onProgress(0); onLayerChange(1); setIsDragging(false); setHint("用手指刮开泥土"); }} aria-label={tr("重新开始")}><RotateCcw size={15} /></button>
       </div>
       <div className="excavation-frame">
-        <div className="frame-label top-left">北 ↑</div>
+        <div className="frame-label top-left">{tr("北 ↑")}</div>
         <div className="frame-label top-right">A-01 / 2026</div>
         <canvas
           ref={canvasRef}
@@ -110,7 +114,7 @@ export default function ExcavationCanvas({ layers, artifacts, foundIds, onFound,
           onPointerUp={() => { setIsDragging(false); lastPoint.current = null; }}
           onLostPointerCapture={() => setIsDragging(false)}
           onPointerCancel={() => setIsDragging(false)}
-          aria-label="交互土层，用鼠标或手指刮开泥土。"
+          aria-label={tr("交互土层，用鼠标或手指刮开泥土。")}
         />
         {visibleArtifacts.map((artifact, i) => (
           <button
@@ -118,28 +122,28 @@ export default function ExcavationCanvas({ layers, artifacts, foundIds, onFound,
             className={`buried-artifact artifact-${i}`}
             style={{ top: artifact.id === "pottery-01" ? "38%" : artifact.id === "coin-01" ? "70%" : "84%" }}
             onClick={() => onFound(artifact)}
-            aria-label={`查看 ${artifact.name}`}
+            aria-label={`${tr("查看")} ${tr(artifact.name)}`}
           >
             <span>{artifact.symbol}</span>
-            <small>{foundIds.includes(artifact.id) ? "已发现" : "线索"}</small>
+            <small>{foundIds.includes(artifact.id) ? tr("已发现") : tr("线索")}</small>
           </button>
         ))}
-        <div className="depth-ruler"><span>0</span><span>20</span><span>45</span><span>70 厘米</span></div>
-        <div className="canvas-instruction"><Hand size={16} /> {hint}</div>
+        <div className="depth-ruler"><span>0</span><span>20</span><span>45</span><span>{tr("70 厘米")}</span></div>
+        <div className="canvas-instruction"><Hand size={16} /> {tr(hint)}</div>
       </div>
-      <button className="secondary-button full" disabled={revealed >= 100} onClick={() => reveal()}>继续发掘</button>
+      <button className="secondary-button full" disabled={revealed >= 100} onClick={() => reveal()}>{tr("继续发掘")}</button>
       <div className="dig-stats">
-        <div><span>发掘进度</span><strong>{Math.round(revealed)}%</strong><div className="mini-track"><i style={{ width: `${revealed}%` }} /></div></div>
-        <div><span>已发现线索</span><strong>{foundIds.length} / 3</strong><div className="mini-track"><i style={{ width: `${(foundIds.length / 3) * 100}%` }} /></div></div>
+        <div><span>{tr("发掘进度")}</span><strong>{Math.round(revealed)}%</strong><div className="mini-track"><i style={{ width: `${revealed}%` }} /></div></div>
+        <div><span>{tr("已发现线索")}</span><strong>{foundIds.length} / 3</strong><div className="mini-track"><i style={{ width: `${(foundIds.length / 3) * 100}%` }} /></div></div>
       </div>
       <div className="found-list">
-        <div className="subsection-title"><Sparkles size={16} /> 已出现的线索 <span>点击查看详情</span></div>
-        {visibleArtifacts.length === 0 ? <p className="empty-hint">轻轻刮开土层，寻找隐藏的器物。<br />逐步清理土层，留意出土背景。</p> :
+        <div className="subsection-title"><Sparkles size={16} /> {tr("已出现的线索")} <span>{tr("点击查看详情")}</span></div>
+        {visibleArtifacts.length === 0 ? <p className="empty-hint">{tr("轻轻刮开土层，寻找隐藏的器物。")}<br />{tr("逐步清理土层，留意出土背景。")}</p> :
           visibleArtifacts.map((artifact) => (
             <button key={artifact.id} className="found-row" onClick={() => onFound(artifact)}>
               <span className="found-symbol">{artifact.symbol}</span>
-              <span className="found-copy"><strong>{artifact.chineseName}</strong><small>{artifact.name}</small></span>
-              <span className="found-action">{foundIds.includes(artifact.id) ? "查看 →" : "研究 →"}</span>
+              <span className="found-copy"><strong>{tr(artifact.chineseName)}</strong><small>{tr(artifact.name)}</small></span>
+              <span className="found-action">{foundIds.includes(artifact.id) ? `${tr("查看")} →` : `${tr("研究")} →`}</span>
             </button>
           ))}
       </div>
