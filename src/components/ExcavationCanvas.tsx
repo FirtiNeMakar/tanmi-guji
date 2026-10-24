@@ -4,17 +4,23 @@ import type { Artifact, Layer } from "../types";
 
 type Props = {
   layers: Layer[];
+  progress: number;
+  onProgress: (value: number) => void;
   artifacts: Artifact[];
   foundIds: string[];
   onFound: (artifact: Artifact) => void;
   onLayerChange: (layer: number) => void;
 };
 
-export default function ExcavationCanvas({ layers, artifacts, foundIds, onFound, onLayerChange }: Props) {
+export default function ExcavationCanvas({ layers, artifacts, foundIds, onFound, onLayerChange, progress: revealed, onProgress }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [revealed, setRevealed] = useState(0);
+  const progressRef = useRef(revealed);
+  progressRef.current = revealed;
+  const lastPoint = useRef<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [hint, setHint] = useState("用手指刮开泥土 · Проводи пальцем, чтобы убрать грунт");
+  const [hint, setHint] = useState("用手指刮开泥土");
+
+  useEffect(() => { onLayerChange(revealed < 34 ? 1 : revealed < 68 ? 2 : 3); }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -55,21 +61,26 @@ export default function ExcavationCanvas({ layers, artifacts, foundIds, onFound,
     ctx.fillRect(0, 0, rect.width, Math.min(rect.height, revealed * rect.height / 100));
   }, [revealed]);
 
-  const reveal = (event: React.PointerEvent<HTMLCanvasElement>) => {
+  const reveal = (event?: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const y = event.clientY - rect.top;
-    const next = Math.min(100, Math.max(revealed + 2.2, (y / rect.height) * 100));
-    setRevealed(next);
+    if (event) {
+      const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      if (event.type === 'pointermove' && lastPoint.current && Math.hypot(point.x - lastPoint.current.x, point.y - lastPoint.current.y) < 6) return;
+      lastPoint.current = point;
+    }
+    const next = Math.min(100, progressRef.current + 2.2);
+    progressRef.current = next;
+    onProgress(next);
     const layerIndex = Math.min(2, Math.floor((next / 100) * 3));
     onLayerChange(layers[layerIndex]?.id ?? 1);
     if (next > 30 && !foundIds.includes("pottery-01")) {
-      setHint("发现陶片线索！点击下方卡片查看 · Найдена керамика!");
+      setHint("发现陶片线索！点击下方卡片查看");
     } else if (next > 68 && !foundIds.includes("coin-01")) {
-      setHint("更深处还有线索 · На глубине есть ещё находка");
+      setHint("更深处还有线索");
     } else {
-      setHint(next >= 100 ? "本次探方已完成 · Раскопка завершена" : "继续仔细发掘 · Продолжай осторожно");
+      setHint(next >= 100 ? "本次探方已完成" : "继续仔细发掘");
     }
     if (navigator.vibrate) navigator.vibrate(12);
   };
@@ -85,20 +96,21 @@ export default function ExcavationCanvas({ layers, artifacts, foundIds, onFound,
       <div className="dig-toolbar">
         <span className="live-dot" /> <span>探方 A-01</span>
         <span className="toolbar-separator">·</span>
-        <span>模拟发掘 / Учебная модель</span>
-        <button className="tiny-reset" onClick={() => { setRevealed(0); setHint("用手指刮开泥土 · Проводи пальцем, чтобы убрать грунт"); }} aria-label="重新开始"><RotateCcw size={15} /></button>
+        <span>模拟发掘</span>
+        <button className="tiny-reset" onClick={() => { onProgress(0); onLayerChange(1); setIsDragging(false); setHint("用手指刮开泥土"); }} aria-label="重新开始"><RotateCcw size={15} /></button>
       </div>
       <div className="excavation-frame">
-        <div className="frame-label top-left">N ↑</div>
+        <div className="frame-label top-left">北 ↑</div>
         <div className="frame-label top-right">A-01 / 2026</div>
         <canvas
           ref={canvasRef}
           className={`soil-canvas ${isDragging ? "dragging" : ""}`}
           onPointerDown={(e) => { setIsDragging(true); e.currentTarget.setPointerCapture(e.pointerId); reveal(e); }}
           onPointerMove={(e) => { if (isDragging) reveal(e); }}
-          onPointerUp={() => setIsDragging(false)}
+          onPointerUp={() => { setIsDragging(false); lastPoint.current = null; }}
+          onLostPointerCapture={() => setIsDragging(false)}
           onPointerCancel={() => setIsDragging(false)}
-          aria-label="Интерактивный слой грунта. Проводите мышью или пальцем."
+          aria-label="交互土层，用鼠标或手指刮开泥土。"
         />
         {visibleArtifacts.map((artifact, i) => (
           <button
@@ -112,16 +124,17 @@ export default function ExcavationCanvas({ layers, artifacts, foundIds, onFound,
             <small>{foundIds.includes(artifact.id) ? "已发现" : "线索"}</small>
           </button>
         ))}
-        <div className="depth-ruler"><span>0</span><span>20</span><span>45</span><span>70 cm</span></div>
+        <div className="depth-ruler"><span>0</span><span>20</span><span>45</span><span>70 厘米</span></div>
         <div className="canvas-instruction"><Hand size={16} /> {hint}</div>
       </div>
+      <button className="secondary-button full" disabled={revealed >= 100} onClick={() => reveal()}>继续发掘</button>
       <div className="dig-stats">
         <div><span>发掘进度</span><strong>{Math.round(revealed)}%</strong><div className="mini-track"><i style={{ width: `${revealed}%` }} /></div></div>
         <div><span>已发现线索</span><strong>{foundIds.length} / 3</strong><div className="mini-track"><i style={{ width: `${(foundIds.length / 3) * 100}%` }} /></div></div>
       </div>
       <div className="found-list">
-        <div className="subsection-title"><Sparkles size={16} /> 已出现的线索 <span>Обнаруженные улики</span></div>
-        {visibleArtifacts.length === 0 ? <p className="empty-hint">轻轻刮开土层，寻找隐藏的器物。<br />Аккуратно убирай грунт, чтобы найти предметы.</p> :
+        <div className="subsection-title"><Sparkles size={16} /> 已出现的线索 <span>点击查看详情</span></div>
+        {visibleArtifacts.length === 0 ? <p className="empty-hint">轻轻刮开土层，寻找隐藏的器物。<br />逐步清理土层，留意出土背景。</p> :
           visibleArtifacts.map((artifact) => (
             <button key={artifact.id} className="found-row" onClick={() => onFound(artifact)}>
               <span className="found-symbol">{artifact.symbol}</span>
