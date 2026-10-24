@@ -457,6 +457,22 @@ button:disabled { cursor: default; }
 .settings-entry { border: 1px solid var(--line); background: var(--paper-dark); color: var(--ink); padding: 8px 12px; margin-left: auto; margin-right: 10px; min-height: 44px; }
 .theme-options { display: flex; flex-wrap: wrap; gap: 10px; }
 .theme-options button { flex: 1; min-width: 110px; }
+.language-options button { min-height: 48px; }
+.case-study { margin-top: 18px; padding: 16px; border: 1px solid var(--line); background: var(--tone-8); }
+.case-study h2 { margin: 7px 0; font-family: 'Noto Serif SC',serif; font-size: 19px; line-height: 1.5; }
+.case-study-intro, .case-study li, .case-study-note p { color: var(--muted); font-size: 11px; line-height: 1.85; }
+.case-study-intro { margin: 0 0 14px; }
+.case-study-stats { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.case-study-stats > div { min-width: 0; padding: 10px; background: var(--paper-dark); }
+.case-study-stats small, .case-study-stats strong { display: block; }
+.case-study-stats small { color: var(--muted); font-size: 9px; }
+.case-study-stats strong { margin-top: 5px; color: var(--bronze-green); font-size: 12px; line-height: 1.6; }
+.case-study h3 { margin: 16px 0 6px; font-family: 'Noto Serif SC',serif; font-size: 14px; }
+.case-study ul { padding-left: 18px; margin: 0; }
+.case-study li + li { margin-top: 7px; }
+.case-study-note { margin-top: 12px; padding: 10px; border-left: 3px solid var(--terracotta); background: var(--paper-dark); font-size: 11px; }
+.case-study-note p { margin: 5px 0 0; }
+.case-study > a { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; color: var(--terracotta); font-size: 11px; font-weight: 700; text-decoration: none; }
 [aria-pressed="true"] { outline: 2px solid var(--terracotta); outline-offset: -2px; }
 .storage-status { margin: 12px 18px; color: var(--ink); background: var(--paper-dark); padding: 12px; font-size: 12px; }
 .vessel-piece { border: 1px dashed var(--line); background: transparent; cursor: pointer; min-width: 100px; }

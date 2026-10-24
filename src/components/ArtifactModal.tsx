@@ -1,10 +1,13 @@
 import { useEffect, useRef } from "react";
 import { X, Bookmark, CheckCircle2 } from "lucide-react";
 import type { Artifact } from "../types";
+import { translate } from "../i18n";
+import type { Language } from "../i18n";
 
-type Props = { artifact: Artifact; collected: boolean; onClose: () => void; onCollect: () => void; canCollect: boolean };
+type Props = { artifact: Artifact; collected: boolean; onClose: () => void; onCollect: () => void; canCollect: boolean; language: Language };
 
-export default function ArtifactModal({ artifact, collected, onClose, onCollect, canCollect }: Props) {
+export default function ArtifactModal({ artifact, collected, onClose, onCollect, canCollect, language }: Props) {
+  const tr = (text: string) => translate(text, language);
   const modal = useRef<HTMLElement>(null);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -26,24 +29,24 @@ export default function ArtifactModal({ artifact, collected, onClose, onCollect,
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <section ref={modal} className="artifact-modal" role="dialog" aria-modal="true" aria-labelledby="artifact-title" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close icon-button" onClick={onClose} aria-label="关闭"><X size={20} /></button>
+        <button className="modal-close icon-button" onClick={onClose} aria-label={tr("关闭")}><X size={20} /></button>
         <div className="artifact-illustration">
           <span>{artifact.symbol}</span>
-          <small>仿制教学标本</small>
+          <small>{tr("仿制教学标本")}</small>
         </div>
         <div className="modal-content">
-          <div className="eyebrow">发现新线索</div>
-          <h2 id="artifact-title">{artifact.chineseName}</h2>
-          <p className="modal-ru-title">{artifact.name}</p>
-          <p>{artifact.description}</p>
+          <div className="eyebrow">{tr("发现新线索")}</div>
+          <h2 id="artifact-title">{tr(artifact.chineseName)}</h2>
+          <p className="modal-ru-title">{tr(artifact.name)}</p>
+          <p>{tr(artifact.description)}</p>
           <dl className="artifact-facts">
-            <div><dt>材料</dt><dd>{artifact.material}</dd></div>
-            <div><dt>年代</dt><dd>{artifact.period}</dd></div>
-            <div><dt>可能用途</dt><dd>{artifact.purpose}</dd></div>
-            <div><dt>出土层位</dt><dd>第 {artifact.layer} 层</dd></div>
+            <div><dt>{tr("材料")}</dt><dd>{tr(artifact.material)}</dd></div>
+            <div><dt>{tr("年代")}</dt><dd>{tr(artifact.period)}</dd></div>
+            <div><dt>{tr("可能用途")}</dt><dd>{tr(artifact.purpose)}</dd></div>
+            <div><dt>{tr("出土层位")}</dt><dd>{language === "ru" ? `Слой ${artifact.layer}` : `第 ${artifact.layer} 层`}</dd></div>
           </dl>
           <button className="primary-button full" onClick={onCollect} disabled={collected || !canCollect}>
-            {collected ? <><CheckCircle2 size={18} /> 已收入图鉴</> : !canCollect ? <>请先前往云探方发现此文物</> : <><Bookmark size={18} /> 收入研学图鉴</>}
+            {collected ? <><CheckCircle2 size={18} /> {tr("已收入图鉴")}</> : !canCollect ? <>{tr("请先前往云探方发现此文物")}</> : <><Bookmark size={18} /> {tr("收入研学图鉴")}</>}
           </button>
         </div>
       </section>
