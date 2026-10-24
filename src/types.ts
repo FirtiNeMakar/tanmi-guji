@@ -1,4 +1,4 @@
-export type TabId = "home" | "dig" | "restore" | "passport" | "discover";
+export type TabId = "home" | "dig" | "restore" | "passport" | "discover" | "settings";
 
 export type Artifact = {
   id: string;
