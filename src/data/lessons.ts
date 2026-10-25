@@ -1,0 +1,108 @@
+import type { Lesson } from "../types";
+
+export const lessons: Lesson[] = [
+  {
+    id: "lesson-basics",
+    title: "考古学基础：遗址与遗物",
+    objective: "区分遗址、遗迹和遗物，理解考古学以系统记录研究过去。",
+    explanation: [
+      "遗址是人类活动遗存所在的地点；遗迹通常指房址、灰坑、墓葬等不易移动的现象；遗物是陶器、工具等可移动的材料。",
+      "考古学研究的不只是器物本身，还包括其层位、位置、伴出材料和与环境的关系。发掘会改变遗址，因此每个操作步骤都需要记录。",
+    ],
+    summary: "遗物脱离出土背景后信息会减少，位置与关联关系同样重要。",
+    terms: ["site", "feature", "artifact", "context", "field-record"],
+    artifactIds: ["banpo-face-fish-basin", "oracle-bone-scapula"],
+    quizIds: ["q-method-context", "q-method-record", "q-method-interpretation", "q-evidence-multiple"],
+  },
+  {
+    id: "lesson-stratigraphy",
+    title: "考古地层学：读懂先后关系",
+    objective: "认识地层叠压关系及扰动对解释的影响。",
+    explanation: [
+      "在连续且未受扰动的沉积中，下层通常先于上层形成。考古学家记录地层界面、叠压、打破关系和遗物分布，再建立遗址形成过程。",
+      "沟、坑、墓穴等后期开挖可能切穿早期地层；耕作、洪水、动物洞穴和现代施工也会扰动土层。地层关系提供相对年代，不会自动给出公历年份。",
+    ],
+    summary: "先后关系要依据实际叠压和打破关系判断，并检查扰动。",
+    terms: ["stratigraphy", "layer", "cut", "relative-dating", "disturbance"],
+    artifactIds: ["hemudu-rice", "oracle-turtle-plastron"],
+    quizIds: ["q-layer-superposition", "q-layer-cut", "q-layer-disturbance", "q-layer-limit"],
+  },
+  {
+    id: "lesson-survey-record",
+    title: "遗址调查与发掘记录",
+    objective: "说明调查、探方设置、三维记录和发掘日志的基本作用。",
+    explanation: [
+      "调查阶段通过踏查、地表采集、地形测绘和必要的遥感资料了解遗址分布。调查本身也有方法限制，例如地表可见度和现代建设会影响判断。",
+      "发掘中使用统一坐标、层位和遗迹编号，记录平面与剖面、照片、测绘、样品和日志。记录应在清理和取样时同步完成，不能依赖事后回忆。",
+    ],
+    summary: "规范记录使发掘现场被移除后仍可复核研究。",
+    terms: ["survey", "excavation", "provenience", "field-record", "sampling"],
+    artifactIds: ["liangzhu-jade-cong", "qin-bronze-chariot"],
+    quizIds: ["q-record-provenience", "q-record-sampling", "q-record-context", "q-record-survey"],
+  },
+  {
+    id: "lesson-typology",
+    title: "文物类型学：比较形制与组合",
+    objective: "了解类型学分类如何建立比较框架，并避免把分类当作年代结论。",
+    explanation: [
+      "类型学依据器物形制、纹饰、制作方法等可观察属性进行分类和比较。分类标准应明确，便于其他研究者复核。",
+      "类型变化可帮助建立相对序列，但同一形制可能长期使用或跨地区流传。类型学需要与地层、测年和共存器物结合。",
+    ],
+    summary: "类型学建立比较框架；它不是脱离语境的自动断代工具。",
+    terms: ["typology", "seriation", "artifact", "diagnostic-trait", "assemblage"],
+    artifactIds: ["yangshao-pointed-bottle", "longshan-eggshell-cup"],
+    quizIds: ["q-type-comparison", "q-type-limit", "q-type-assemblage", "q-type-trait"],
+  },
+  {
+    id: "lesson-dating",
+    title: "相对年代与绝对年代",
+    objective: "区别相对年代排序与校准后的日历年代范围。",
+    explanation: [
+      "相对年代说明对象之间的先后关系，可依据地层叠压、器物序列和关联关系建立。它不必然告诉我们事件发生的具体公历年份。",
+      "绝对年代方法包括放射性碳测年、树轮年代学等。方法适用对象、样本质量和误差范围各不相同；结果通常是概率区间，需要结合考古语境。",
+    ],
+    summary: "年代结论应标出方法、样本、校准和误差，而不是只给一个精确数字。",
+    terms: ["relative-dating", "absolute-dating", "chronology", "calibration", "terminus"],
+    artifactIds: ["li-gui", "mawangdui-silk-painting"],
+    quizIds: ["q-dating-relative", "q-dating-absolute", "q-dating-calibration", "q-dating-context"],
+  },
+  {
+    id: "lesson-radiocarbon",
+    title: "放射性碳测年：样本、校准与边界",
+    objective: "说明碳十四测年适用材料、校准必要性和常见限制。",
+    explanation: [
+      "放射性碳测年适用于曾与大气或食物链交换碳的有机材料，例如木炭、种子和骨胶原。它测得的是样本中碳十四衰变信息，不是直接测量陶器或青铜器的年代。",
+      "实验室测量结果需要通过校准曲线换算为日历年代范围。样本受污染、老木效应、水生食物库效应和样本与事件不同步，都可能影响结果。",
+    ],
+    summary: "先判断样本是否合适，再核对校准区间和考古关联。",
+    terms: ["radiocarbon", "calibration", "sampling", "old-wood-effect", "reservoir-effect"],
+    artifactIds: ["hemudu-rice", "jiahu-bone-flute"],
+    quizIds: ["q-carbon-material", "q-carbon-calibration", "q-carbon-old-wood", "q-carbon-context"],
+  },
+  {
+    id: "lesson-conservation",
+    title: "文物保护与修复",
+    objective: "理解预防性保护、材料分析和可逆/可识别修复的基本原则。",
+    explanation: [
+      "文物出土后环境变化会带来温湿度、盐分、光照和生物因素风险。保护工作首先需要评估材料状态和环境，尽量减少继续损害。",
+      "修复前须记录现状并了解材料与病害。教学拼合只模拟判断和组合，不代表真实修复；真实文物处理应由具备资质的专业人员制定方案。",
+    ],
+    summary: "保护优先于展示，修复应有记录、依据和边界。",
+    terms: ["conservation", "restoration", "preventive-conservation", "material-analysis", "field-record"],
+    artifactIds: ["qin-bronze-chariot", "changxin-lamp"],
+    quizIds: ["q-conservation-first", "q-conservation-record", "q-conservation-limit", "q-conservation-environment"],
+  },
+  {
+    id: "lesson-evidence",
+    title: "考古证据、历史解释与不确定性",
+    objective: "区分已观察事实、解释性推断和仍待验证的假说。",
+    explanation: [
+      "考古报告应区分观察记录与解释。例如“发现带刻划的龟甲”是材料描述；“刻划是文字”则是需要论证的解释。",
+      "解释应说明支持证据、其他可能性和限制。新样本、新方法或新发现可能改变结论；标注不确定性不是回避问题，而是准确表达证据强度。",
+    ],
+    summary: "结论强度不能超过证据强度；讨论争议时同时说明证据和限制。",
+    terms: ["hypothesis", "inference", "uncertainty", "multiple-working-hypotheses", "context"],
+    artifactIds: ["jiahu-turtle-shell", "erlitou-turquoise-dragon"],
+    quizIds: ["q-method-interpretation", "q-oracle-debate", "q-erlitou-debate", "q-evidence-multiple"],
+  },
+];
