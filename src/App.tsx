@@ -3,33 +3,28 @@ import { ArrowRight, BookOpen, Check, ChevronRight, Footprints, MapPin, Medal, P
 import BottomNav from "./components/BottomNav";
 import ArtifactModal from "./components/ArtifactModal";
 import ExcavationCanvas from "./components/ExcavationCanvas";
-import { artifacts, layers } from "./data";
-import type { Artifact, TabId } from "./types";
+import ContentHub from "./components/ContentHub";
+import RestorationWorkshop from "./components/RestorationWorkshop";
+import { articles, artifacts, excavations, lessons, quizzes, restorationTasks } from "./data/index";
+import type { ArtifactRecord, TabId } from "./types";
 
-import { STORAGE_KEY, readSaved, rewardQuiz, placePiece, revealThreshold } from './progress';
+import { STORAGE_KEY, initialState, readSaved, markArtifactStudied, recordExcavationFind, resetExcavationScene, setExcavationProgress } from './progress';
 import type { SavedState } from './progress';
-import { readLanguage, translate } from "./i18n";
-import type { Language } from "./i18n";
-const tabs = ['home', 'dig', 'restore', 'passport', 'discover', 'settings'];
-function readTab(): TabId { const tab = location.hash.slice(1); return tabs.includes(tab) ? tab as TabId : 'home'; }
+const tabs: TabId[] = ['home', 'dig', 'restore', 'passport', 'discover', 'settings'];
+function readTab(): TabId { const tab = location.hash.slice(1).split("/")[0]; return tabs.includes(tab as TabId) ? tab as TabId : 'home'; }
 function readTheme(): 'light' | 'dark' { try { return localStorage.getItem('tanmi-guji-theme') === 'dark' ? 'dark' : 'light'; } catch { return 'light'; } }
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>(readTab);
   const [saved, setSaved] = useState<SavedState>(readSaved);
-  const [selectedArtifact, setSelectedArtifact] = useState<Artifact | null>(null);
+  const [selectedArtifact, setSelectedArtifact] = useState<ArtifactRecord | null>(null);
   const [activeLayer, setActiveLayer] = useState(1);
-  const restored = saved.restored;
-  const [selectedPiece, setSelectedPiece] = useState<string | null>(null);
-  const [restoreFeedback, setRestoreFeedback] = useState('');
+  const [activeSceneId, setActiveSceneId] = useState(excavations[0].id);
   const [theme, setTheme] = useState(readTheme);
-  const [language, setLanguage] = useState<Language>(readLanguage);
   const [storageError, setStorageError] = useState('');
-  const [artifactSource, setArtifactSource] = useState<'dig' | 'catalog'>('catalog');
-  const [quizChoice, setQuizChoice] = useState<number | null>(null);
-  const [quizDone, setQuizDone] = useState(false);
-  const [showAllArtifacts, setShowAllArtifacts] = useState(false);
-  const tr = (text: string) => translate(text, language);
+  const tr = (text: string) => text;
+  const activeScene = excavations.find(({ id }) => id === activeSceneId) ?? excavations[0];
+  const discoveredArtifactIds = [...new Set([...saved.foundIds, ...Object.values(saved.excavationFoundArtifactIds).flat()])];
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); setStorageError(''); }
@@ -41,9 +36,8 @@ export default function App() {
     return () => window.removeEventListener('hashchange', sync);
   }, []);
   useEffect(() => {
-    if (location.hash !== '#' + activeTab) location.hash = activeTab;
+    if (readTab() !== activeTab) location.hash = activeTab;
     window.scrollTo(0, 0);
-    if (activeTab === 'dig') setSaved(c => c.completed[1] ? c : { ...c, completed: [c.completed[0], true, c.completed[2]] });
   }, [activeTab]);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -51,26 +45,12 @@ export default function App() {
     try { localStorage.setItem('tanmi-guji-theme', theme); }
     catch { setStorageError('无法保存设置，请允许浏览器存储；当前主题已生效。'); }
   }, [theme]);
-  useEffect(() => {
-    document.documentElement.lang = language === "ru" ? "ru" : "zh-CN";
-    document.title = language === "ru" ? "Тайны древности · Археология" : "探秘古迹 · 考古研学";
-    try { localStorage.setItem('tanmi-guji-language', language); }
-    catch { setStorageError('无法保存设置，请允许浏览器存储；当前语言已生效。'); }
-  }, [language]);
+  useEffect(() => { document.documentElement.lang = "zh-CN"; document.title = "探秘古迹 · 考古研学"; }, []);
 
   const updateSaved = (updater: (current: SavedState) => SavedState) => setSaved(updater);
-  const collectArtifact = (artifact: Artifact) => {
-    updateSaved((current) => artifactSource !== "dig" || current.digProgress < revealThreshold(artifact.id) || current.foundIds.includes(artifact.id) ? current : ({
-      ...current,
-      foundIds: [...current.foundIds, artifact.id],
-      points: current.points + 10,
-    }));
-    setSelectedArtifact(null);
-  };
-
   const claimStamp = (id: string) => {
     updateSaved((current) => current.stamps.includes(id) ? current : ({
-      ...current, stamps: [...current.stamps, id], points: current.points + 20,
+      ...current, stamps: [...current.stamps, id], points: Math.min(Number.MAX_SAFE_INTEGER, current.points + 20),
     }));
   };
 
@@ -95,7 +75,7 @@ export default function App() {
       </section>
 
       <section className="stats-strip">
-        <div><span className="stat-icon"><Pickaxe size={17} /></span><strong>{saved.foundIds.length}</strong><small>{tr("发现线索")}</small></div>
+        <div><span className="stat-icon"><Pickaxe size={17} /></span><strong>{discoveredArtifactIds.length}</strong><small>{tr("发现线索")}</small></div>
         <div><span className="stat-icon"><Star size={17} /></span><strong>{saved.points}</strong><small>{tr("研学积分")}</small></div>
         <div><span className="stat-icon"><StampIcon /></span><strong>{saved.stamps.length}</strong><small>{tr("探索印章")}</small></div>
       </section>
@@ -122,56 +102,50 @@ export default function App() {
     </>
   );
 
-  const renderDig = () => (
-    <>
-      <PageTitle eyebrow={tr("模拟考古现场")} title={tr("云探方")} subtitle={tr("指尖发掘历史")} description={tr("用考古学家的方法寻找线索。记录位置、地层和证据，不急于下结论。")} />
-      <div className="notice-card"><Sparkles size={17} /><span><strong>{tr("考古提示")}</strong><small>{tr("先观察出土背景，再作判断。留意器物所在的地层。")}</small></span></div>
-      <div className="layer-selector">
-        {layers.map((layer) => <button key={layer.id} className={`layer-chip ${activeLayer === layer.id ? "selected" : ""}`} onClick={() => setActiveLayer(layer.id)}><i style={{ background: layer.color }} /><span>{tr(layer.chineseTitle)}</span></button>)}
-      </div>
-      <div className="selected-layer-info"><div><strong>{tr(layers[activeLayer - 1]?.title ?? "")}</strong><small>{tr(layers[activeLayer - 1]?.description ?? "")}</small></div><span>{tr(layers[activeLayer - 1]?.depth ?? "")}</span></div>
-      <ExcavationCanvas language={language} layers={layers} artifacts={artifacts} foundIds={saved.foundIds} progress={saved.digProgress} onProgress={(digProgress) => updateSaved(c => ({ ...c, digProgress }))} onFound={(artifact) => { setArtifactSource('dig'); setSelectedArtifact(artifact); }} onLayerChange={setActiveLayer} />
-      <div className="method-card"><div className="method-icon"><BookOpen size={19} /></div><div><strong>{tr("证据链")}</strong><p>{tr("不能仅凭外观判断年代，还需结合层位、共存器物和土层扰动情况。")}</p></div></div>
-    </>
-  );
-
-  const renderRestore = () => {
-    const pieces = [
-      { id: "rim", name: "口沿", ru: "容器顶部", symbol: "⌒" },
-      { id: "body", name: "器身", ru: "容器中部", symbol: "◖" },
-      { id: "base", name: "底座", ru: "容器底部", symbol: "⌣" },
-    ];
-    const complete = pieces.every((piece) => restored.includes(piece.id));
+  const renderDig = () => {
+    const foundIds = saved.excavationFoundArtifactIds[activeScene.id] ?? [];
+    const layer = activeScene.layers[Math.min(activeLayer - 1, activeScene.layers.length - 1)];
     return <>
-      <PageTitle eyebrow={tr("器物修复室")} title={tr("文物修复")} subtitle={tr("让残片重现器形")} description={tr("先选择陶片，再点击对应的器物位置，完成教学模型的拼合。")} />
-      <div className="restoration-board">
-        <div className="board-label"><span>{tr("修复台")}</span><span>{tr("教学标本 001")}</span></div>
-        <div className={`vessel-display ${complete ? "complete" : ""}`}>
-          {pieces.map(piece => <button key={piece.id} className={`vessel-piece piece-${piece.id} ${restored.includes(piece.id) ? 'placed' : ''}`} disabled={restored.includes(piece.id)} aria-label={`${tr("放置到")}${tr(piece.name)}`} onClick={() => {
-            if (!selectedPiece) { setRestoreFeedback(tr('请先选择下方陶片。')); return; }
-            if (selectedPiece !== piece.id) { setRestoreFeedback(tr('位置不匹配，请观察器形后再试一次。')); return; }
-            updateSaved(c => placePiece(c, piece.id)); setSelectedPiece(null); setRestoreFeedback(tr('放置正确！完成修复可获一次 15 积分奖励。'));
-          }}>{piece.symbol}</button>)}
-          {complete && <div className="complete-stamp"><Check size={20} /><span>{tr("修复完成")}</span><small>{tr("器物已拼合")}</small></div>}
-        </div>
-        <p className="restoration-tip">{complete ? tr("做得好！你已完成器物拼合。") : tr("选择下方陶片，将它们放回正确的位置。")}</p>
-        <p className="restoration-tip" role="status">{restoreFeedback}</p><div className="piece-tray">
-          {pieces.map((piece) => <button key={piece.id} className={`piece-card ${restored.includes(piece.id) ? "piece-done" : ""}`} onClick={() => { setSelectedPiece(piece.id); setRestoreFeedback(`${tr("已选择")}${tr(piece.name)}，${tr("请点击器物上的对应位置。")}`); }} aria-pressed={selectedPiece === piece.id} disabled={restored.includes(piece.id)}>
-            <span className={`piece-shape ${piece.id}`}>{restored.includes(piece.id) ? <Check size={20} /> : piece.symbol}</span><strong>{tr(piece.name)}</strong><small>{tr(piece.ru)}</small>{restored.includes(piece.id) && <span className="piece-check"><Check size={13} /></span>}
-          </button>)}
-        </div>
-        <button className="secondary-button full" onClick={() => { updateSaved(c => ({ ...c, restored: [] })); setSelectedPiece(null); setRestoreFeedback(tr("已重置修复台，请重新选择陶片。")); }}><RotateCcw size={16} /> {tr("重新开始")}</button>
+      <PageTitle eyebrow="教学模拟场景" title="云探方" subtitle="指尖发掘历史" description="练习记录教学场景中的发现物、层位和证据；所有场景均为模拟，不是实际遗址或发掘记录。" />
+      <div className="notice-card"><Sparkles size={17} /><span><strong>考古提示</strong><small>地层先后关系有助于解释发现背景，但土层可能受扰动；深度不能直接等同于绝对年代。</small></span></div>
+      <div className="hub-nav excavation-scene-nav" aria-label="选择教学模拟场景">
+        {excavations.map((scene, index) => <button key={scene.id} className={scene.id === activeScene.id ? "active" : ""} onClick={() => { setActiveSceneId(scene.id); setActiveLayer(1); }}>{index + 1}. {scene.title}</button>)}
       </div>
-      <div className="learning-card"><h3>{tr("修复原则")}</h3><ul><li>{tr("先观察每块残片的形状与材质。")}</li><li>{tr("检查断口是否吻合，不要强行拼接。")}</li><li>{tr("修复应保留历史痕迹，而非掩盖它们。")}</li></ul></div>
+      <section className="learning-card scene-goal"><strong>学习目标</strong><p>{activeScene.objective}</p><p>{activeScene.task}</p><small>完成条件：{activeScene.endCondition}</small></section>
+      <div className="layer-selector">
+        {activeScene.layers.map((item, index) => <button key={item.id} className={`layer-chip ${activeLayer === index + 1 ? "selected" : ""}`} onClick={() => setActiveLayer(index + 1)}><i /><span>{item.name}</span></button>)}
+      </div>
+      <div className="selected-layer-info"><div><strong>{layer.name}</strong><small>{layer.description}</small></div><span>{layer.depth}</span></div>
+      <ExcavationCanvas
+        scene={activeScene}
+        foundIds={foundIds}
+        progress={saved.excavationProgress[activeScene.id] ?? 0}
+        onProgress={(progress) => updateSaved((current) => setExcavationProgress(current, activeScene.id, progress))}
+        onFound={(artifact, layerId) => {
+          updateSaved((current) => recordExcavationFind(current, activeScene.id, artifact.id, layerId));
+          setSelectedArtifact(artifact);
+        }}
+        onLayerChange={setActiveLayer}
+        onReset={() => updateSaved((current) => resetExcavationScene(current, activeScene.id))}
+      />
+      <div className="method-card"><div className="method-icon"><BookOpen size={19} /></div><div><strong>证据链</strong><p>同一物品出现在不同层位，解释可能不同。要结合层位关系、共存材料、扰动情况和测年证据，区分观察与推断。</p></div></div>
     </>;
   };
 
+  const renderRestore = () => <>
+    <PageTitle eyebrow="教学修复工作台" title="文物修复" subtitle="让构件重现结构" description="通过选择构件并放置到正确位置，完成五项教学拼合练习。拼片均为教学示意，不是真实出土碎片或保护方案。" />
+    <RestorationWorkshop saved={saved} updateSaved={updateSaved} />
+    <div className="learning-card"><h3>修复原则</h3><ul><li>先观察每块残片的形状与材质。</li><li>检查断口和结构关系，不要强行拼接。</li><li>真实文物修复须由专业人员依据记录开展，教学操作不代表实际修复方案。</li></ul></div>
+  </>;
+
   const renderPassport = () => {
+    const overallTotal = articles.length + lessons.length + excavations.length + restorationTasks.length + quizzes.length;
+    const overallDone = saved.readArticleIds.length + saved.completedLessonIds.length + saved.completedExcavationIds.length + saved.completedRestorationIds.length + saved.correctQuestionIds.length;
     const stampOptions = [
-      { id: "site", title: "初探遗址", ru: "迈出探索第一步", symbol: "探", condition: "进入云探方", unlocked: saved.completed[1] },
-      { id: "artifact", title: "识别器物", ru: "认识第一件器物", symbol: "器", condition: "收集第一件文物", unlocked: saved.foundIds.length >= 1 },
-      { id: "restore", title: "修复新手", ru: "完成一次器物修复", symbol: "修", condition: "完成器物修复", unlocked: saved.completed[0] },
-      { id: "scholar", title: "博学探索者", ru: "学习考古基础知识", symbol: "知", condition: "完成一次答题", unlocked: saved.completed[2] },
+      { id: "site", title: "初探遗址", ru: "完成一个模拟发掘场景", symbol: "探", condition: "完成教学模拟发掘", unlocked: saved.completedExcavationIds.length > 0 || saved.completed[1] },
+      { id: "artifact", title: "识别器物", ru: "认识第一件器物", symbol: "器", condition: "记录第一件文物", unlocked: discoveredArtifactIds.length >= 1 },
+      { id: "restore", title: "修复新手", ru: "完成一次器物修复", symbol: "修", condition: "完成器物修复", unlocked: saved.completedRestorationIds.length > 0 || saved.completed[0] },
+      { id: "scholar", title: "博学探索者", ru: "完成课程或答题", symbol: "知", condition: "完成课程或答题", unlocked: saved.completedLessonIds.length > 0 || saved.correctQuestionIds.length > 0 || saved.completed[2] },
     ];
     return <>
       <PageTitle eyebrow={tr("探索足迹")} title={tr("研学护照")} subtitle={tr("收藏探索足迹")} description={tr("记录你的探索足迹，收集研学印章，逐步成为时空探险家。")} />
@@ -182,7 +156,25 @@ export default function App() {
         <div className="passport-ru">{tr("研学护照")}</div>
         <div className="passport-bottom"><span>{tr("探索等级")}</span><strong>{saved.points} {tr("积分")}</strong></div>
       </div>
-      <div className="passport-stats"><div><strong>{saved.stamps.length}</strong><small>{tr("已获印章")}</small></div><div><strong>{saved.foundIds.length}</strong><small>{tr("文物线索")}</small></div><div><strong>{saved.points}</strong><small>{tr("研学积分")}</small></div></div>
+      <div className="passport-stats"><div><strong>{saved.stamps.length}</strong><small>{tr("已获印章")}</small></div><div><strong>{discoveredArtifactIds.length}</strong><small>{tr("已发现材料")}</small></div><div><strong>{saved.points}</strong><small>{tr("研学积分")}</small></div></div>
+      <section className="learning-progress passport-progress">
+        <div><span>总体学习进度</span><strong>{overallDone} / {overallTotal} 项</strong></div>
+        <span className="mini-track"><i style={{ width: `${overallTotal ? Math.min(100, (overallDone / overallTotal) * 100) : 0}%` }} /></span>
+      </section>
+      <section className="passport-records">
+        <h2>学习记录</h2>
+        <p>已读文章：{saved.readArticleIds.length} 篇 · 已完成课程：{saved.completedLessonIds.length} 节</p>
+        <p>已完成模拟发掘：{saved.completedExcavationIds.length} 项 · 已完成修复：{saved.completedRestorationIds.length} 项</p>
+        <p>答题：{saved.answeredQuestionIds.length} 道 · 答对：{saved.correctQuestionIds.length} 道 · 待复习错题：{saved.wrongQuestionIds.length} 道</p>
+        <p>收藏文物：{saved.favoriteArtifactIds.length} 件 · 已学习文物：{saved.studiedArtifactIds.length} 件</p>
+        {discoveredArtifactIds.length > 0 && <div><strong>已发现材料及模拟层位</strong>{discoveredArtifactIds.map((id) => {
+          const artifact = artifacts.find((item) => item.id === id);
+          const sceneEntry = Object.entries(saved.excavationFindLayers).flatMap(([sceneId, entries]) => entries[id] ? [{ sceneId, layerId: entries[id] }] : [])[0];
+          const scene = excavations.find(({ id: sceneId }) => sceneId === sceneEntry?.sceneId);
+          const layerName = scene?.layers.find(({ id: layerId }) => layerId === sceneEntry?.layerId)?.name;
+          return <p className="passport-record-item" key={id}>{artifact?.name ?? id}{layerName ? ` · 模拟层位：${layerName}` : ""}</p>;
+        })}</div>}
+      </section>
       <div className="section-heading compact"><div><h2>{tr("我的探索印章")}</h2><p>{tr("完成任务后点击领取印章")}</p></div><span className="collection-count">{stampOptions.filter((s) => s.unlocked || saved.stamps.includes(s.id)).length}/4</span></div>
       <div className="stamp-grid">
         {stampOptions.map((stamp) => {
@@ -194,63 +186,6 @@ export default function App() {
         })}
       </div>
       <div className="notice-card"><Footprints size={18} /><span><strong>{tr("线下打卡")}</strong><small>{tr("实地定位打卡与博物馆印章尚未开放，目前可收集教学虚拟印章。")}</small></span></div>
-    </>;
-  };
-
-  const renderDiscover = () => {
-    const options = ["因为这一层的文物总是最漂亮", "因为层位有助于理解文物的出土背景", "因为深度可以直接确定具体年份"];
-    const correct = quizChoice === 1;
-    return <>
-      <PageTitle eyebrow={tr("考古小课堂")} title={tr("博古通今")} subtitle={tr("以问题串联古今")} description={tr("每一次发现，都从一个好问题开始。每日一题，积累考古知识。")} />
-      <div className="daily-label"><span><Star size={15} /> {tr("每日鉴宝题")}</span><span>{tr("第一题")}</span></div>
-      <div className="quiz-card">
-        <div className="quiz-illustration"><div className="quiz-pot">◒</div><span>{tr("现场思考")}</span></div>
-        <div className="quiz-body">
-          <div className="eyebrow">{tr("考古学基础")}</div>
-          <h2>{tr("为什么考古学家要记录文物的出土层位？")}</h2>
-          <p>{tr("请选择最符合考古方法的解释。")}</p>
-          <div className="quiz-options">
-            {options.map((option, index) => <button key={option} className={`quiz-option ${quizChoice === index ? "chosen" : ""} ${quizDone && index === 1 ? "correct" : ""} ${quizDone && quizChoice === index && index !== 1 ? "wrong" : ""}`} onClick={() => { if (!quizDone) setQuizChoice(index); }} disabled={quizDone}>
-              <span>{String.fromCharCode(65 + index)}</span>{tr(option)}
-            </button>)}
-          </div>
-          {quizDone && <div className={`quiz-feedback ${correct ? "success" : "try-again"}`}><strong>{correct ? tr("回答正确！本题奖励仅在首次答对时发放。") : tr("回答有误，查看正确答案后可再试一次。")}</strong><p>{tr("正确答案：层位有助于理解出土背景。它能帮助对比发现、检验推断，但深度本身无法确定准确年代。")}</p></div>}
-          <button className="primary-button full" disabled={quizChoice === null || quizDone} onClick={() => {
-            setQuizDone(true);
-            if (quizChoice === null || quizDone) return;
-            updateSaved((current) => rewardQuiz(current, quizChoice === 1));
-          }}>{tr("确认答案")}<ArrowRight size={17} /></button>
-          {quizDone && <button className="text-button" onClick={() => { setQuizChoice(null); setQuizDone(false); }}>{tr("再答一次")}</button>}
-        </div>
-      </div>
-      <div className="learning-card"><h3>{tr("今日知识卡")}</h3><p>{tr("地层学研究地层的先后关系。未经扰动时，下层通常早于上层；翻耕和土方搬运等情况可能改变这一关系。")}</p></div>
-      <section className="case-study">
-        <div className="eyebrow">{tr("考古专题材料")}</div>
-        <h2>{tr("山东元代济南王张荣家族墓地")}</h2>
-        <p className="case-study-intro">{tr("依据济南市考古研究院2023年2月20日发布的报道整理，内容为教学摘要，不替代原始报告。")}</p>
-        <div className="case-study-stats">
-          <div><small>{tr("发掘时间")}</small><strong>{tr("2021年10月—2022年9月")}</strong></div>
-          <div><small>{tr("墓葬总数")}</small><strong>{tr("102座")}</strong></div>
-          <div><small>{tr("张氏家族墓")}</small><strong>{tr("至少32座")}</strong></div>
-          <div><small>{tr("出土器物")}</small><strong>{tr("500余件（组）")}</strong></div>
-        </div>
-        <h3>{tr("核心发现")}</h3>
-        <ul>
-          <li>{tr("此次发掘发现西汉至清代墓葬102座，其中元代张荣家族墓地最为重要。")}</li>
-          <li>{tr("墓园延续整个元代，现有证据至少覆盖至张荣玄孙一代。")}</li>
-          <li>{tr("M83（张荣墓）规模最大：墓葬通长34.2米、最宽15.1米、深6.3米，设前后门楼及八个墓室，壁画保存了宴享、仪仗、花鸟等图像。")}</li>
-          <li>{tr("出土瓷器涉及钧窑、龙泉、磁州、景德镇等窑系；官窑和青花瓷器共40余件，报道指出济南首次发掘出土元青花。")}</li>
-          <li>{tr("神道碑、子孙谱碑等石刻提供近4000字文字材料，可与历史文献互证。")}</li>
-        </ul>
-        <div className="case-study-note"><strong>{tr("学习重点")}</strong><p>{tr("器物组合、墓葬结构和碑刻需要结合位置与关系分析，单件遗物不能单独支撑完整结论。")}</p></div>
-        <a href="https://mp.weixin.qq.com/s/VELo788qDpHyPxfJnjpF8Q" target="_blank" rel="noreferrer">{tr("查看原文（微信公众号）")} <ArrowRight size={15} /></a>
-      </section>
-      <div className="section-heading compact"><div><h2>{tr("器物图鉴")}</h2><p>{tr("浏览教学标本，领取需要先在云探方发现。")}</p></div><button className="text-button" onClick={() => setShowAllArtifacts(!showAllArtifacts)}>{showAllArtifacts ? tr("收起") : tr("查看全部")} <ChevronRight size={14} /></button></div>
-      <div className="catalog-list">
-        {(showAllArtifacts ? artifacts : artifacts.slice(0, 2)).map((artifact) => <button key={artifact.id} className="catalog-item" onClick={() => { setArtifactSource("catalog"); setSelectedArtifact(artifact); }}>
-          <span className="catalog-symbol">{artifact.symbol}</span><span className="catalog-copy"><strong>{tr(artifact.chineseName)}</strong><small>{tr(artifact.name)}</small><em>{tr(artifact.material)}</em></span><ChevronRight size={17} />
-        </button>)}
-      </div>
     </>;
   };
 
@@ -271,18 +206,34 @@ export default function App() {
           <section className="learning-card"><h3>{tr("外观主题")}</h3><div className="theme-options" role="group" aria-label={tr("外观主题")}>
             {(['light', 'dark'] as const).map(value => <button key={value} className="secondary-button" aria-pressed={theme === value} onClick={() => setTheme(value)}>{value === 'light' ? tr('浅色模式') : tr('深色模式')}{theme === value && <Check size={16} />}</button>)}
           </div><p>{tr("主题与研学进度保存在当前浏览器中。")}</p></section>
-          <section className="learning-card"><h3>{tr("选择语言")}</h3><div className="theme-options language-options" role="group" aria-label={tr("选择语言")}>
-            {([{ value: "zh", label: "简体中文" }, { value: "ru", label: "Русский" }] as const).map(option => <button key={option.value} className="secondary-button" aria-pressed={language === option.value} onClick={() => setLanguage(option.value)}>{option.label}{language === option.value && <Check size={16} />}</button>)}
-          </div><p>{tr("语言与主题设置保存在当前浏览器中。")}</p></section>
+          <section className="learning-card"><h3>恢复默认设置</h3><p>将外观主题恢复为首次访问时的浅色模式，不会更改研学进度。</p><button className="secondary-button" onClick={() => setTheme("light")}>恢复浅色主题</button></section>
+          <section className="learning-card"><h3>本地学习数据</h3><p>进度仅保存在此浏览器，不会跨设备同步。清除操作只删除本应用的学习记录，不影响主题或其他网站数据。</p><button className="secondary-button" onClick={() => {
+            if (!window.confirm("确定清除本应用保存在此浏览器中的学习进度、收藏和成绩吗？此操作无法撤销。")) return;
+            try {
+              localStorage.removeItem(STORAGE_KEY);
+              setSaved({ ...initialState });
+              setStorageError("");
+            } catch {
+              setStorageError("清除失败，请检查浏览器存储权限。");
+            }
+          }}>清除本地学习数据</button></section>
+          <section className="learning-card"><h3>关于探秘古迹</h3><p>版本 1.2.0 · 面向中国大陆用户的考古教育应用。文物图像如未确认开放授权，将显示文字说明而非未经许可的图片。</p></section>
         </>}
         {activeTab === "home" && renderHome()}
         {activeTab === "dig" && renderDig()}
         {activeTab === "restore" && renderRestore()}
         {activeTab === "passport" && renderPassport()}
-        {activeTab === "discover" && renderDiscover()}
+        {activeTab === "discover" && <ContentHub saved={saved} updateSaved={updateSaved} />}
       </main>
-      <BottomNav language={language} active={activeTab} onChange={setActiveTab} />
-      {selectedArtifact && <ArtifactModal language={language} artifact={selectedArtifact} collected={saved.foundIds.includes(selectedArtifact.id)} onClose={() => setSelectedArtifact(null)} canCollect={artifactSource === "dig"} onCollect={() => collectArtifact(selectedArtifact)} />}
+      <BottomNav active={activeTab} onChange={(tab) => { if (tab === activeTab && tab === "discover") location.hash = "#discover"; else setActiveTab(tab); }} />
+      {selectedArtifact && <ArtifactModal
+        artifact={selectedArtifact}
+        layerName={activeScene.layers.find(({ id }) => id === saved.excavationFindLayers[activeScene.id]?.[selectedArtifact.id])?.name ?? "尚未记录"}
+        collected={saved.studiedArtifactIds.includes(selectedArtifact.id)}
+        onClose={() => setSelectedArtifact(null)}
+        canCollect={(saved.excavationFoundArtifactIds[activeScene.id] ?? []).includes(selectedArtifact.id)}
+        onCollect={() => updateSaved((current) => markArtifactStudied(current, selectedArtifact.id))}
+      />}
     </div>
   );
 }

@@ -1,30 +1,35 @@
 import { useEffect, useRef, useState } from "react";
 import { Hand, RotateCcw, Sparkles } from "lucide-react";
-import type { Artifact, Layer } from "../types";
-import { translate } from "../i18n";
-import type { Language } from "../i18n";
+import { artifacts } from "../data/artifacts";
+import type { ArtifactRecord, ExcavationScene } from "../types";
 
 type Props = {
-  language: Language;
-  layers: Layer[];
+  scene: ExcavationScene;
   progress: number;
-  onProgress: (value: number) => void;
-  artifacts: Artifact[];
   foundIds: string[];
-  onFound: (artifact: Artifact) => void;
+  onProgress: (value: number) => void;
+  onFound: (artifact: ArtifactRecord, layerId: string) => void;
   onLayerChange: (layer: number) => void;
+  onReset: () => void;
 };
 
-export default function ExcavationCanvas({ language, layers, artifacts, foundIds, onFound, onLayerChange, progress: revealed, onProgress }: Props) {
-  const tr = (text: string) => translate(text, language);
+export default function ExcavationCanvas({ scene, foundIds, onFound, onLayerChange, progress, onProgress, onReset }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const progressRef = useRef(revealed);
-  progressRef.current = revealed;
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
   const lastPoint = useRef<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [hint, setHint] = useState("用手指刮开泥土");
+  const [hint, setHint] = useState("用手指或鼠标轻轻清理土层");
 
-  useEffect(() => { onLayerChange(revealed < 34 ? 1 : revealed < 68 ? 2 : 3); }, []);
+  const layerIndexAt = (value: number) => Math.min(scene.layers.length - 1, Math.floor((value / 100) * scene.layers.length));
+  const currentLayerIndex = layerIndexAt(progress);
+  const availableFinds = scene.layers.slice(0, currentLayerIndex + 1)
+    .flatMap((layer) => layer.artifactIds.map((artifactId) => ({ artifact: artifacts.find(({ id }) => id === artifactId), layer })))
+    .filter((entry): entry is { artifact: ArtifactRecord; layer: ExcavationScene["layers"][number] } => Boolean(entry.artifact));
+
+  useEffect(() => {
+    onLayerChange(currentLayerIndex + 1);
+  }, [currentLayerIndex, onLayerChange]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -36,114 +41,104 @@ export default function ExcavationCanvas({ language, layers, artifacts, foundIds
     canvas.width = Math.round(rect.width * dpr);
     canvas.height = Math.round(rect.height * dpr);
     ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, rect.width, rect.height);
-    const gradient = ctx.createLinearGradient(0, 0, 0, rect.height);
-    gradient.addColorStop(0, "#D9BC91");
-    gradient.addColorStop(0.34, "#B7835C");
-    gradient.addColorStop(0.68, "#986B4C");
-    gradient.addColorStop(1, "#80563F");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, rect.width, rect.height);
-    for (let i = 0; i < 170; i++) {
-      const x = (i * 73.17) % rect.width;
-      const y = (i * 37.91) % rect.height;
-      ctx.fillStyle = i % 2 ? "rgba(74,48,31,.12)" : "rgba(255,238,205,.2)";
-      ctx.beginPath();
-      ctx.arc(x, y, (i % 3) + 0.7, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    [0.34, 0.68].forEach((ratio) => {
-      ctx.strokeStyle = "rgba(70,45,29,.28)";
-      ctx.setLineDash([5, 6]);
-      ctx.beginPath();
-      ctx.moveTo(0, rect.height * ratio);
-      ctx.lineTo(rect.width, rect.height * ratio);
-      ctx.stroke();
+    const height = rect.height / scene.layers.length;
+    const soilColors = ["#D9BC91", "#B7835C", "#986B4C", "#80563F"];
+    scene.layers.forEach((_, index) => {
+      ctx.fillStyle = soilColors[index % soilColors.length];
+      ctx.fillRect(0, index * height, rect.width, height + 1);
+      for (let speck = 0; speck < 38; speck++) {
+        const x = ((speck * 73.17) + index * 19) % rect.width;
+        const y = (index * height) + ((speck * 37.91) % height);
+        ctx.fillStyle = speck % 2 ? "rgba(74,48,31,.12)" : "rgba(255,238,205,.2)";
+        ctx.beginPath();
+        ctx.arc(x, y, (speck % 3) + 0.7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (index > 0) {
+        ctx.strokeStyle = "rgba(70,45,29,.35)";
+        ctx.setLineDash([5, 6]);
+        ctx.beginPath();
+        ctx.moveTo(0, index * height);
+        ctx.lineTo(rect.width, index * height);
+        ctx.stroke();
+      }
     });
     ctx.setLineDash([]);
-    ctx.fillStyle = "rgba(50,40,30,.12)";
-    ctx.fillRect(0, 0, rect.width, Math.min(rect.height, revealed * rect.height / 100));
-  }, [revealed]);
+    const cleanedHeight = rect.height * progress / 100;
+    ctx.fillStyle = "rgba(50,40,30,.32)";
+    ctx.fillRect(0, cleanedHeight, rect.width, rect.height - cleanedHeight);
+  }, [progress, scene]);
 
   const reveal = (event?: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
+    if (!canvas || progressRef.current >= 100) return;
     if (event) {
+      const rect = canvas.getBoundingClientRect();
       const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-      if (event.type === 'pointermove' && lastPoint.current && Math.hypot(point.x - lastPoint.current.x, point.y - lastPoint.current.y) < 6) return;
+      if (event.type === "pointermove" && lastPoint.current && Math.hypot(point.x - lastPoint.current.x, point.y - lastPoint.current.y) < 6) return;
       lastPoint.current = point;
     }
     const next = Math.min(100, progressRef.current + 2.2);
     progressRef.current = next;
     onProgress(next);
-    const layerIndex = Math.min(2, Math.floor((next / 100) * 3));
-    onLayerChange(layers[layerIndex]?.id ?? 1);
-    if (next > 30 && !foundIds.includes("pottery-01")) {
-      setHint("发现陶片线索！点击下方卡片查看");
-    } else if (next > 68 && !foundIds.includes("coin-01")) {
-      setHint("更深处还有线索");
-    } else {
-      setHint(next >= 100 ? "本次探方已完成" : "继续仔细发掘");
-    }
+    onLayerChange(layerIndexAt(next) + 1);
+    setHint(next >= 100 ? "已清理全部模拟层，请检查并记录发现物" : "继续清理，留意不同层位的材料");
     if (navigator.vibrate) navigator.vibrate(12);
   };
-
-  const visibleArtifacts = artifacts.filter((artifact) => {
-    if (artifact.id === "pottery-01") return revealed >= 28;
-    if (artifact.id === "coin-01") return revealed >= 65;
-    return revealed >= 82;
-  });
 
   return (
     <div className="dig-game">
       <div className="dig-toolbar">
-        <span className="live-dot" /> <span>{tr("探方 A-01")}</span>
+        <span className="live-dot" /> <span>{scene.title}</span>
         <span className="toolbar-separator">·</span>
-        <span>{tr("模拟发掘")}</span>
-        <button className="tiny-reset" onClick={() => { onProgress(0); onLayerChange(1); setIsDragging(false); setHint("用手指刮开泥土"); }} aria-label={tr("重新开始")}><RotateCcw size={15} /></button>
+        <span>教学模拟</span>
+        <button className="tiny-reset" onClick={onReset} aria-label="重新开始本场景"><RotateCcw size={15} /></button>
       </div>
       <div className="excavation-frame">
-        <div className="frame-label top-left">{tr("北 ↑")}</div>
-        <div className="frame-label top-right">A-01 / 2026</div>
+        <div className="frame-label top-left">教学探方</div>
+        <div className="frame-label top-right">非真实遗址记录</div>
         <canvas
           ref={canvasRef}
           className={`soil-canvas ${isDragging ? "dragging" : ""}`}
-          onPointerDown={(e) => { setIsDragging(true); e.currentTarget.setPointerCapture(e.pointerId); reveal(e); }}
-          onPointerMove={(e) => { if (isDragging) reveal(e); }}
+          onPointerDown={(event) => { setIsDragging(true); event.currentTarget.setPointerCapture(event.pointerId); reveal(event); }}
+          onPointerMove={(event) => { if (isDragging) reveal(event); }}
           onPointerUp={() => { setIsDragging(false); lastPoint.current = null; }}
           onLostPointerCapture={() => setIsDragging(false)}
           onPointerCancel={() => setIsDragging(false)}
-          aria-label={tr("交互土层，用鼠标或手指刮开泥土。")}
+          aria-label="交互土层，可用鼠标或手指逐层清理。"
         />
-        {visibleArtifacts.map((artifact, i) => (
-          <button
-            key={artifact.id}
-            className={`buried-artifact artifact-${i}`}
-            style={{ top: artifact.id === "pottery-01" ? "38%" : artifact.id === "coin-01" ? "70%" : "84%" }}
-            onClick={() => onFound(artifact)}
-            aria-label={`${tr("查看")} ${tr(artifact.name)}`}
-          >
-            <span>{artifact.symbol}</span>
-            <small>{foundIds.includes(artifact.id) ? tr("已发现") : tr("线索")}</small>
-          </button>
-        ))}
-        <div className="depth-ruler"><span>0</span><span>20</span><span>45</span><span>{tr("70 厘米")}</span></div>
-        <div className="canvas-instruction"><Hand size={16} /> {tr(hint)}</div>
+        {availableFinds.map(({ artifact, layer }, index) => {
+          const layerIndex = scene.layers.findIndex(({ id }) => id === layer.id);
+          const top = `${((layerIndex + 0.52) / scene.layers.length) * 100}%`;
+          return (
+            <button
+              key={artifact.id}
+              className={`buried-artifact artifact-${index % 3}`}
+              style={{ top }}
+              onClick={() => onFound(artifact, layer.id)}
+              aria-label={`查看${artifact.name}，教学模拟层位：${layer.name}`}
+            >
+              <span>{artifact.name.slice(0, 1)}</span>
+              <small>{foundIds.includes(artifact.id) ? "已记录" : "线索"}</small>
+            </button>
+          );
+        })}
+        <div className="depth-ruler">{scene.layers.map(({ depth, id }) => <span key={id}>{depth}</span>)}</div>
+        <div className="canvas-instruction"><Hand size={16} /> {hint}</div>
       </div>
-      <button className="secondary-button full" disabled={revealed >= 100} onClick={() => reveal()}>{tr("继续发掘")}</button>
+      <button className="secondary-button full" disabled={progress >= 100} onClick={() => reveal()}>继续清理土层</button>
       <div className="dig-stats">
-        <div><span>{tr("发掘进度")}</span><strong>{Math.round(revealed)}%</strong><div className="mini-track"><i style={{ width: `${revealed}%` }} /></div></div>
-        <div><span>{tr("已发现线索")}</span><strong>{foundIds.length} / 3</strong><div className="mini-track"><i style={{ width: `${(foundIds.length / 3) * 100}%` }} /></div></div>
+        <div><span>场景进度</span><strong>{Math.round(progress)}%</strong><div className="mini-track"><i style={{ width: `${progress}%` }} /></div></div>
+        <div><span>已记录发现</span><strong>{foundIds.length} / {scene.artifactIds.length}</strong><div className="mini-track"><i style={{ width: `${(foundIds.length / scene.artifactIds.length) * 100}%` }} /></div></div>
       </div>
       <div className="found-list">
-        <div className="subsection-title"><Sparkles size={16} /> {tr("已出现的线索")} <span>{tr("点击查看详情")}</span></div>
-        {visibleArtifacts.length === 0 ? <p className="empty-hint">{tr("轻轻刮开土层，寻找隐藏的器物。")}<br />{tr("逐步清理土层，留意出土背景。")}</p> :
-          visibleArtifacts.map((artifact) => (
-            <button key={artifact.id} className="found-row" onClick={() => onFound(artifact)}>
-              <span className="found-symbol">{artifact.symbol}</span>
-              <span className="found-copy"><strong>{tr(artifact.chineseName)}</strong><small>{tr(artifact.name)}</small></span>
-              <span className="found-action">{foundIds.includes(artifact.id) ? `${tr("查看")} →` : `${tr("研究")} →`}</span>
+        <div className="subsection-title"><Sparkles size={16} /> 已出现的教学材料 <span>点击查看详情</span></div>
+        {availableFinds.length === 0 ? <p className="empty-hint">轻轻清理土层，观察模拟出土背景。<br />场景中的层位仅用于教学练习。</p> :
+          availableFinds.map(({ artifact, layer }) => (
+            <button key={artifact.id} className="found-row" onClick={() => onFound(artifact, layer.id)}>
+              <span className="found-symbol">{artifact.name.slice(0, 1)}</span>
+              <span className="found-copy"><strong>{artifact.name}</strong><small>模拟层位：{layer.name}（{layer.depth}）</small></span>
+              <span className="found-action">{foundIds.includes(artifact.id) ? "已记录 →" : "记录 →"}</span>
             </button>
           ))}
       </div>
